@@ -37,6 +37,11 @@ const db = getFirestore(app);
 // Expose to global scope
 window._fb = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, updatePassword, doc, setDoc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp };
 
+// Load stock immediately after Firebase is ready
+setTimeout(function() {
+  if (typeof loadAllStockCounts === 'function') loadAllStockCounts();
+}, 800);
+
 // Auth state listener
 onAuthStateChanged(auth, async function(user) {
   if (user) {
@@ -47,6 +52,8 @@ onAuthStateChanged(auth, async function(user) {
       window.updateNavForLogin();
       window.updateWalletDisplay();
       setTimeout(function() { if (typeof openDash === 'function') openDash(); }, 100);
+      // Reload stock now that Firebase is confirmed ready
+      setTimeout(function() { if (typeof loadAllStockCounts === 'function') loadAllStockCounts(); }, 300);
     }
   } else {
     window.isLoggedIn = false;
@@ -3065,9 +3072,16 @@ async function tryAutoDeliver(productTitle, quantity) {
   }
 }
 
-// Load stock counts once Firebase is ready
+// Load stock counts once Firebase is ready — retry every 500ms up to 20 times
+var _stockLoadTries = 0;
 var _stockLoadInterval = setInterval(function() {
-  if (window._fb) { clearInterval(_stockLoadInterval); loadAllStockCounts(); }
+  _stockLoadTries++;
+  if (window._fb) {
+    clearInterval(_stockLoadInterval);
+    loadAllStockCounts();
+  } else if (_stockLoadTries > 20) {
+    clearInterval(_stockLoadInterval);
+  }
 }, 500);
 
 // ============ ADMIN INVENTORY PANEL ============
