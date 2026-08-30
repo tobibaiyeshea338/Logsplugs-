@@ -3016,8 +3016,8 @@ function updateStoreBadges() {
     var badgeEl = el.querySelector('.stock-badge-text');
     var buyBtn = el.querySelector('.buy-btn-main');
     if (count === undefined) {
-      if (badgeEl) { badgeEl.textContent = 'In Stock'; badgeEl.style.color = 'var(--green)'; }
-      if (buyBtn) { buyBtn.disabled = false; buyBtn.style.opacity = '1'; buyBtn.style.cursor = 'pointer'; buyBtn.textContent = 'Buy Now'; }
+      if (badgeEl) { badgeEl.textContent = 'Out of Stock'; badgeEl.style.color = 'var(--red)'; }
+      if (buyBtn) { buyBtn.disabled = true; buyBtn.style.opacity = '0.45'; buyBtn.style.cursor = 'not-allowed'; buyBtn.textContent = 'Out of Stock'; }
       return;
     }
     if (badgeEl) {
