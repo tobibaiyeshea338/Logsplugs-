@@ -1201,7 +1201,7 @@ function init() {
         else if (p.fn) { badge.className = 'badge-fn'; badge.textContent = 'Select Country and Service'; }
         else {
           badge.className = 'badge-stock';
-          badge.innerHTML = '<span class="stock-badge-text" style="color:var(--green);">In Stock</span>';
+          badge.innerHTML = '<span class="stock-badge-text" style="color:var(--red);">Out of Stock</span>';
           // Set data attribute on row for stock updates
           row.setAttribute('data-prod-key', prodKey(p.title));
         }
@@ -3010,7 +3010,9 @@ function loadAllStockCounts() {
 }
 
 function updateStoreBadges() {
-  document.querySelectorAll('[data-prod-key]').forEach(function(el) {
+  var els = document.querySelectorAll('[data-prod-key]');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
     var key = el.getAttribute('data-prod-key');
     var count = window._stockCache[key];
     var badgeEl = el.querySelector('.stock-badge-text');
@@ -3018,7 +3020,7 @@ function updateStoreBadges() {
     if (count === undefined) {
       if (badgeEl) { badgeEl.textContent = 'Out of Stock'; badgeEl.style.color = 'var(--red)'; }
       if (buyBtn) { buyBtn.disabled = true; buyBtn.style.opacity = '0.45'; buyBtn.style.cursor = 'not-allowed'; buyBtn.textContent = 'Out of Stock'; }
-      return;
+      continue;
     }
     if (badgeEl) {
       if (count > 0) {
@@ -3031,7 +3033,7 @@ function updateStoreBadges() {
         if (buyBtn) { buyBtn.disabled = true; buyBtn.style.opacity = '0.45'; buyBtn.style.cursor = 'not-allowed'; buyBtn.textContent = 'Out of Stock'; }
       }
     }
-  });
+  }
 }
 
 async function tryAutoDeliver(productTitle, quantity) {
