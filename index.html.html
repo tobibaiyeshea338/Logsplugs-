@@ -37,6 +37,11 @@ const db = getFirestore(app);
 // Expose to global scope
 window._fb = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, updatePassword, doc, setDoc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp };
 
+// Load stock immediately after Firebase is ready
+setTimeout(function() {
+  if (typeof loadAllStockCounts === 'function') loadAllStockCounts();
+}, 800);
+
 // Auth state listener
 onAuthStateChanged(auth, async function(user) {
   if (user) {
@@ -47,6 +52,8 @@ onAuthStateChanged(auth, async function(user) {
       window.updateNavForLogin();
       window.updateWalletDisplay();
       setTimeout(function() { if (typeof openDash === 'function') openDash(); }, 100);
+      // Reload stock now that Firebase is confirmed ready
+      setTimeout(function() { if (typeof loadAllStockCounts === 'function') loadAllStockCounts(); }, 300);
     }
   } else {
     window.isLoggedIn = false;
@@ -597,6 +604,7 @@ footer strong{color:var(--text);}
   </div>
 </div>
 <div class="notice">&#x1F4B0; Fund your wallet first, then purchase instantly. Logs delivered within minutes.</div>
+<div id="stockDebug" style="background:#fef9c3;padding:8px 16px;font-size:11px;color:#854d0e;text-align:center;word-break:break-all;"></div>
 
 <div class="container">
   <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:14px;padding:16px;margin-bottom:18px;color:#fff;">
@@ -1201,7 +1209,7 @@ function init() {
         else if (p.fn) { badge.className = 'badge-fn'; badge.textContent = 'Select Country and Service'; }
         else {
           badge.className = 'badge-stock';
-          badge.innerHTML = '<span class="stock-badge-text" style="color:var(--green);">In Stock</span>';
+          badge.innerHTML = '<span class="stock-badge-text" style="color:var(--red);">Out of Stock</span>';
           // Set data attribute on row for stock updates
           row.setAttribute('data-prod-key', prodKey(p.title));
         }
@@ -2996,29 +3004,44 @@ function prodKey(title) {
 window._stockCache = {};
 
 function loadAllStockCounts() {
-  if (!window._fb) return;
+  var debugEl = document.getElementById('stockDebug');
+  if (debugEl) debugEl.textContent = 'Loading stock...';
+  if (!window._fb) {
+    if (debugEl) debugEl.textContent = 'Firebase not ready';
+    return;
+  }
   var fb = window._fb;
   fb.getDocs(fb.collection(fb.db, 'inventory')).then(function(snap) {
-    snap.forEach(function(d) {
-      var data = d.data();
+    var docs = snap.docs;
+    if (debugEl) debugEl.textContent = 'Found ' + docs.length + ' inventory docs';
+    for (var i = 0; i < docs.length; i++) {
+      var data = docs[i].data();
       var logs = data.logs || [];
-      var available = logs.filter(function(l) { return !l.used; }).length;
-      window._stockCache[d.id] = available;
-    });
+      var available = 0;
+      for (var j = 0; j < logs.length; j++) {
+        if (!logs[j].used) available++;
+      }
+      window._stockCache[docs[i].id] = available;
+      if (debugEl) debugEl.textContent += ' | ' + docs[i].id + ':' + available;
+    }
     updateStoreBadges();
-  }).catch(function() {});
+  }).catch(function(e) {
+    if (debugEl) debugEl.textContent = 'Error: ' + e.message;
+  });
 }
 
 function updateStoreBadges() {
-  document.querySelectorAll('[data-prod-key]').forEach(function(el) {
+  var els = document.querySelectorAll('[data-prod-key]');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
     var key = el.getAttribute('data-prod-key');
     var count = window._stockCache[key];
     var badgeEl = el.querySelector('.stock-badge-text');
     var buyBtn = el.querySelector('.buy-btn-main');
     if (count === undefined) {
-      if (badgeEl) { badgeEl.textContent = 'In Stock'; badgeEl.style.color = 'var(--green)'; }
-      if (buyBtn) { buyBtn.disabled = false; buyBtn.style.opacity = '1'; buyBtn.style.cursor = 'pointer'; buyBtn.textContent = 'Buy Now'; }
-      return;
+      if (badgeEl) { badgeEl.textContent = 'Out of Stock'; badgeEl.style.color = 'var(--red)'; }
+      if (buyBtn) { buyBtn.disabled = true; buyBtn.style.opacity = '0.45'; buyBtn.style.cursor = 'not-allowed'; buyBtn.textContent = 'Out of Stock'; }
+      continue;
     }
     if (badgeEl) {
       if (count > 0) {
@@ -3031,7 +3054,7 @@ function updateStoreBadges() {
         if (buyBtn) { buyBtn.disabled = true; buyBtn.style.opacity = '0.45'; buyBtn.style.cursor = 'not-allowed'; buyBtn.textContent = 'Out of Stock'; }
       }
     }
-  });
+  }
 }
 
 async function tryAutoDeliver(productTitle, quantity) {
@@ -3063,9 +3086,16 @@ async function tryAutoDeliver(productTitle, quantity) {
   }
 }
 
-// Load stock counts once Firebase is ready
+// Load stock counts once Firebase is ready — retry every 500ms up to 20 times
+var _stockLoadTries = 0;
 var _stockLoadInterval = setInterval(function() {
-  if (window._fb) { clearInterval(_stockLoadInterval); loadAllStockCounts(); }
+  _stockLoadTries++;
+  if (window._fb) {
+    clearInterval(_stockLoadInterval);
+    loadAllStockCounts();
+  } else if (_stockLoadTries > 20) {
+    clearInterval(_stockLoadInterval);
+  }
 }, 500);
 
 // ============ ADMIN INVENTORY PANEL ============
