@@ -11,7 +11,7 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'G-D78FK3RHBD');
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script src="https://checkout.flutterwave.com/v3.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
@@ -37,11 +37,6 @@ const db = getFirestore(app);
 // Expose to global scope
 window._fb = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, updatePassword, doc, setDoc, getDoc, updateDoc, collection, addDoc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp };
 
-// Load stock immediately after Firebase is ready
-setTimeout(function() {
-  if (typeof loadAllStockCounts === 'function') loadAllStockCounts();
-}, 800);
-
 // Auth state listener
 onAuthStateChanged(auth, async function(user) {
   if (user) {
@@ -52,8 +47,6 @@ onAuthStateChanged(auth, async function(user) {
       window.updateNavForLogin();
       window.updateWalletDisplay();
       setTimeout(function() { if (typeof openDash === 'function') openDash(); }, 100);
-      // Reload stock now that Firebase is confirmed ready
-      setTimeout(function() { if (typeof loadAllStockCounts === 'function') loadAllStockCounts(); }, 300);
     }
   } else {
     window.isLoggedIn = false;
@@ -951,7 +944,10 @@ footer strong{color:var(--text);}
 </footer>
 
 <script>
+try { emailjs.init('e3gj7wgDCFXIm2wtS'); } catch(e) {}
 
+var SERVICE_ID = 'service_u2y9ae4';
+var TEMPLATE_ID = 'template_0dk5bz6';
 var TG = 'https://t.me/Logsplugscom';
 var TG_CHANNEL = 'https://t.me/+mypjwbrMWs5iNzE0';
 var ADMIN_EMAIL = '8191958648ayt@gmail.com';
@@ -1291,8 +1287,6 @@ function doRegister() {
       window.updateNavForLogin();
       openDash();
       window.updateWalletDisplay();
-      document.getElementById('reg1').style.display = 'block';
-      document.getElementById('reg2').style.display = 'none';
       ['regName','regEmail','regPass'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     });
   }).catch(function(err) {
@@ -1306,8 +1300,7 @@ function doRegister() {
     btn.disabled = false;
   });
 }
-
-function sendOTP(isResend) { doRegister(); }
+function sendOTP() { doRegister(); }
 function verifyOTP() { doRegister(); }
 
 function doLogin() {
@@ -1644,6 +1637,11 @@ function confirmWalletPurchase() {
           '</div>' +
         '</div>' +
         '<button class="nbtn nbtn-solid" style="width:100%;padding:10px;margin-bottom:8px;" onclick="closeM(\'buy\');openOrderHistory();">View Order History</button>';
+      emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+        to_email: ADMIN_EMAIL, to_name: 'Admin', name: window.loggedInUser.name, email: window.loggedInUser.email,
+        otp: 'NEW WALLET ORDER!\nEmail: ' + window.loggedInUser.email + '\nProduct: ' + curProd.title + '\nQty: ' + qty + '\nTotal: ' + f(total) + '\nTime: ' + new Date().toLocaleString(),
+        title: 'New Order - ' + short, message: 'Email: ' + window.loggedInUser.email, time: new Date().toLocaleString(),
+      });
       toast('Order placed! Check Order History for your logs.');
     }
   }).catch(function(err) {
@@ -2090,6 +2088,14 @@ function numBuyConfirm() {
   }).then(function(docRef) {
     currentNumOrderId = docRef.id;
     // Notify admin by email
+    emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: ADMIN_EMAIL, to_name: 'Admin',
+      name: window.loggedInUser.name, email: window.loggedInUser.email,
+      otp: 'NUMBER ORDER\nProduct: ' + curNumProd.title + '\nEmail: ' + window.loggedInUser.email + '\nAmount: ' + f(curNumProd.price) + '\nOrder ID: ' + docRef.id,
+      title: 'New Number Order - ' + curNumProd.title,
+      message: 'Email: ' + window.loggedInUser.email + '\nProduct: ' + curNumProd.title,
+      time: new Date().toLocaleString()
+    }).catch(function(){});
     // Show waiting screen (timer only starts when admin sends number)
     window._numTimerStarted = false;
     document.getElementById('fs2').style.display = 'none';
@@ -2185,6 +2191,15 @@ function numBuyCancel() {
   var fb = window._fb;
   // Set to cancel_requested — admin must approve
   fb.updateDoc(fb.doc(fb.db, 'numRequests', currentNumOrderId), { status: 'cancel_requested' }).then(function() {
+    // Notify admin by email
+    emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: ADMIN_EMAIL, to_name: 'Admin',
+      name: window.loggedInUser.name, email: window.loggedInUser.email,
+      otp: 'CANCEL REQUEST\nProduct: ' + curNumProd.title + '\nEmail: ' + window.loggedInUser.email + '\nOrder ID: ' + currentNumOrderId,
+      title: 'Cancel Requested - ' + curNumProd.title,
+      message: 'Customer requested cancellation. Email: ' + window.loggedInUser.email,
+      time: new Date().toLocaleString()
+    }).catch(function(){});
     // Show "Processing Cancellation" screen — stay on modal, keep listener
     document.getElementById('fs3Waiting').style.display = 'none';
     document.getElementById('fs3Timer').style.display = 'none';
@@ -2997,8 +3012,7 @@ init();
 
 // ============ INVENTORY SYSTEM ============
 function prodKey(title) {
-  var clean = title.replace(/[^\x00-\x7F]/g, '');
-  return clean.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 60);
+  return title.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 60);
 }
 
 window._stockCache = {};
@@ -3018,7 +3032,7 @@ function loadAllStockCounts() {
       window._stockCache[docs[i].id] = available;
     }
     updateStoreBadges();
-  }).catch(function(e) { console.log('stock error', e); });
+  }).catch(function() {});
 }
 
 function updateStoreBadges() {
@@ -3038,7 +3052,7 @@ function updateStoreBadges() {
       if (count > 0) {
         badgeEl.textContent = 'In Stock (' + count + ')';
         badgeEl.style.color = 'var(--green)';
-        if (buyBtn) { buyBtn.disabled = false; buyBtn.style.opacity = '1'; buyBtn.textContent = 'Buy Now'; }
+        if (buyBtn) { buyBtn.disabled = false; buyBtn.style.opacity = '1'; buyBtn.style.cursor = 'pointer'; buyBtn.textContent = 'Buy Now'; }
       } else {
         badgeEl.textContent = 'Out of Stock';
         badgeEl.style.color = 'var(--red)';
@@ -3077,16 +3091,9 @@ async function tryAutoDeliver(productTitle, quantity) {
   }
 }
 
-// Load stock counts once Firebase is ready — retry every 500ms up to 20 times
-var _stockLoadTries = 0;
+// Load stock counts once Firebase is ready
 var _stockLoadInterval = setInterval(function() {
-  _stockLoadTries++;
-  if (window._fb) {
-    clearInterval(_stockLoadInterval);
-    loadAllStockCounts();
-  } else if (_stockLoadTries > 20) {
-    clearInterval(_stockLoadInterval);
-  }
+  if (window._fb) { clearInterval(_stockLoadInterval); loadAllStockCounts(); }
 }, 500);
 
 // ============ ADMIN INVENTORY PANEL ============
