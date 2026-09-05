@@ -1033,7 +1033,7 @@ var products = {
     { title:'Foreign 🌍 TikTok | 1-2yrs | May Have Posts', price:2100 },
     { title:'Foreign 🌍 TikTok | 100 Followers', price:4100 },
     { title:'Foreign 🌍 TikTok | 500 Followers', price:6600 },
-    { title:'Foreign 🌍 TikTok | 1000 Followers', price:9500 },
+    { title:'Foreign 🌍 TikTok | 1000 Followers', price:10500 },
   ],
   instagram: [
     { title:'Foreign 🌍 Instagram | 0-10 Followers | 1-2yrs | May Have Posts', price:2600 },
@@ -2997,7 +2997,13 @@ init();
 
 // ============ INVENTORY SYSTEM ============
 function prodKey(title) {
-  return title.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 60);
+  // Remove emojis and special unicode characters first
+  var clean = title.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F000}-\u{1FFFF}]/gu, '');
+  // Fallback for browsers that don't support unicode regex flags
+  try {
+    clean = title.replace(/[^\x00-\x7F]/g, '');
+  } catch(e) {}
+  return clean.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').substring(0, 60);
 }
 
 window._stockCache = {};
