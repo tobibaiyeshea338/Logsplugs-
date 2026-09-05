@@ -1287,7 +1287,8 @@ function doRegister() {
       window.updateNavForLogin();
       openDash();
       window.updateWalletDisplay();
-      ['regName','regEmail','regPass'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      var clearIds = ['regName','regEmail','regPass'];
+      for (var ci=0; ci<clearIds.length; ci++) { var el = document.getElementById(clearIds[ci]); if (el) el.value = ''; }
     });
   }).catch(function(err) {
     if (err.code === 'auth/email-already-in-use') {
