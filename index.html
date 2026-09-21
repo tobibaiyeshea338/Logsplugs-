@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Logsplugs - #1 Account Store</title>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-D78FK3RHBD"></script>
 <script>
@@ -1543,18 +1546,40 @@ function confirmWalletPurchase() {
   var short = curProd.title.length > 24 ? curProd.title.substring(0, 24) + '...' : curProd.title;
   var key = prodKey(curProd.title);
 
-  // Check stock first if inventory exists for this product
-  var stockCount = window._stockCache[key];
-  if (stockCount !== undefined && stockCount < qty) {
-    if (stockCount === 0) {
-      toast('This product is out of stock!');
-    } else {
-      toast('Only ' + stockCount + ' unit(s) available. Please reduce quantity.');
-    }
-    return;
-  }
+  // Always re-fetch stock from Firebase before purchase to ensure accuracy
+  var payBtn = document.querySelector('#ms1 .nbtn-solid');
+  if (payBtn) { payBtn.disabled = true; payBtn.innerHTML = '<span class="spinner"></span>Checking stock...'; }
 
-  // Disable button to prevent double-click
+  fb.getDocs(fb.collection(fb.db, 'inventory')).then(function(snap) {
+    var docs = snap.docs;
+    for (var i = 0; i < docs.length; i++) {
+      var data = docs[i].data();
+      var logs = data.logs || [];
+      var available = 0;
+      for (var j = 0; j < logs.length; j++) {
+        if (!logs[j].used) available++;
+      }
+      window._stockCache[docs[i].id] = available;
+    }
+    var freshCount = window._stockCache[key];
+    if (freshCount !== undefined && freshCount < qty) {
+      if (payBtn) { payBtn.disabled = false; payBtn.innerHTML = 'Buy Now'; }
+      if (freshCount === 0) {
+        toast('Sorry, this product is now out of stock!');
+      } else {
+        toast('Only ' + freshCount + ' unit(s) left. Please reduce quantity.');
+      }
+      updateStoreBadges();
+      return;
+    }
+    proceedWithPurchase(fb, short, key, total, bal);
+  }).catch(function() {
+    // If stock check fails, still proceed (fail open)
+    proceedWithPurchase(fb, short, key, total, bal);
+  });
+}
+
+function proceedWithPurchase(fb, short, key, total, bal) {
   var payBtn = document.querySelector('#ms1 .nbtn-solid');
   if (payBtn) { payBtn.disabled = true; payBtn.innerHTML = '<span class="spinner"></span>Processing...'; }
 
